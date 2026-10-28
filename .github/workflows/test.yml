@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      cv_ref:
+        description: 'open-guji-cv 的分支（默认 dev）'
+        default: dev
 
 jobs:
   pytest:
@@ -16,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: open-guji/open-guji-cv
-          ref: dev
+          ref: ${{ inputs.cv_ref || 'dev' }}
           path: open-guji-cv
           lfs: false
       - uses: actions/setup-python@v5
