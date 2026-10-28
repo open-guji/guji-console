@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "guji-console"
+version = "0.1.0"
+description = "open-guji 控制台：看产物、人裁、下单跑管线的 Web 界面（FastAPI + React）；经 open-guji-cv 的门面 console_api 读数据，写操作调 cv 命令行"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    # 版本不写下限：cv 多是源码安装（-e），版本号跟 dev 走；兼容性由启动时核契约版本、
+    # 以及 `open_guji_cv.console_api` 门面在不在来保证（见 guji_console/commands.py）
+    "open-guji-cv",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    # auth/oauth.py 顶层 import httpx
+    "httpx>=0.25",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "pytest-xdist>=3.0", "ruff>=0.4"]
+
+[project.scripts]
+guji-console = "guji_console.commands:main"
+
+# 装上本包，`guji console` / `guji runs` 就由这里提供（cv cli_v2.load_plugin_commands）
+[project.entry-points."guji.commands"]
+console = "guji_console.commands"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["guji_console*"]
+
+[tool.setuptools.package-data]
+guji_console = ["static/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "manual: 依赖真实工作区产物的人工验收测试（如控制台重构快照），默认排除，需要跑时显式加 -m manual",
+]
+addopts = "-m 'not manual'"

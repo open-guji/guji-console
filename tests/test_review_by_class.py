@@ -1,0 +1,249 @@
+# -*- coding: utf-8 -*-
+"""按类别审（overview#247）：`cards(cls=…)`、己已巳专用卡的事件协议、整理本优先的上下文。
+
+产物自己造（`PageAdmit` / `PageAlignRef` 直接构造），不扫真书。要守的：
+
+1. 一张卡只归**优先级最高**的一类；计数不受 `limit` 截断；不传 `cls` 时响应里没有新字段。
+2. 卡片「整理本」一栏读 `align_ref` 产物，混进来的康熙部首码位归一成正字。
+3. 上下文每格默认给整理本对位字（`text`），对不上的退回刻本定字；带 sub 的项按 (slot, sub) 取。
+4. 己已巳三选一发出的事件行与普通卡点同一个字**逐字段相同**，下游 `human_chars` 读出的字不变。
+5. 切线用例的进程内记忆：同产物第二次不重算，产物一变就失效，没取全的不记。
+"""
+from __future__ import annotations
+
+import importlib
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+import open_guji_cv.steps  # noqa: F401  注册产物种类
+
+
+def _rec(cid, slot, doubts, *, admit=False, char="之", evidence=None, sub=None):
+    from open_guji_cv.products.kinds.recog import AdmitRec
+    return AdmitRec(id=cid, slot=slot, sub=sub, admit=admit, char=char, doubts=doubts,
+                    evidence=evidence or {})
+
+
+# ── 1. 归类规则（纯函数）───────────────────────────────────────────────
+
+
+# ── 2. cards(cls=…) ────────────────────────────────────────────────
+
+@pytest.fixture
+def env(ws, tmp_path, monkeypatch):
+    """keben 两页待审卡 + 一页整理本对位（第 1 页锚上、第 2 页只有坐标对位）。"""
+    from open_guji_cv.core.spec import page_key
+    from open_guji_cv.products.kinds.recog import (AlignRec, ColumnAdmit, CoordRec, PageAdmit,
+                                                   PageAlignRef)
+    from open_guji_cv.products.store import ProductStore
+    from open_guji_cv.review import cards as C
+    fb = tmp_path / "fb"
+    (fb / "events").mkdir(parents=True)
+    monkeypatch.setenv("GUJI_FEEDBACK_DIR", str(fb))
+    monkeypatch.setenv("GUJI_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("GUJI_PRODUCTS_DIR", str(tmp_path / "products"))
+    st = ProductStore(tmp_path / "products")
+    p1 = [
+        _rec("keben:1:1:1", 1, ["replace_align", "上下文 margin 不足(0.1)", "库 unsure(cov=0.9)"]),
+        _rec("keben:1:1:2", 2, ["库 unsure(cov=0.8)"], char="而"),      # 整理本给 ⼰（部首码位）→ 己已巳
+        _rec("keben:1:1:3", 3, ["near_form", "replace_align"]),
+        _rec("keben:1:1:4", 4, ["occluded"], evidence={"occluded": {"via": "coord", "ref_blank": False}}),
+        _rec("keben:1:1:5", 5, [], admit=True),
+        _rec("keben:1:1:6", 6, ["replace_align"]),
+    ]
+    p2 = [
+        _rec("keben:2:1:1", 1, ["channel_off"]),
+        _rec("keben:2:1:2", 2, ["replace_align"]),
+    ]
+    for pg, recs in ((1, p1), (2, p2)):
+        st.write("keben", "seed_admit", page_key(pg),
+                 {"seed_admit": PageAdmit(page=pg, columns=[ColumnAdmit(col=1, chars=recs)])})
+    st.write("keben", "align_ref", page_key(1), {"align_ref": PageAlignRef(
+        page=1, anchored=True,
+        chars=[AlignRec(id="keben:1:1:1", col=1, slot=1, align_char="天", align_op="equal", ref_run=5),
+               AlignRec(id="keben:1:1:2", col=1, slot=2, align_char="⼰", align_op="replace", ref_run=1)])})
+    st.write("keben", "align_ref", page_key(2), {"align_ref": PageAlignRef(
+        page=2, anchored=False, coord=[CoordRec(id="keben:2:1:2", col=1, slot=2, ref_char="地"),
+                                       CoordRec(id="keben:2:1:1", col=1, slot=1, ref_char="〓")])})
+    C.clear_cards_cache()
+    yield st
+    C.clear_cards_cache()
+
+
+@pytest.fixture
+def client(env):
+    from fastapi.testclient import TestClient
+    app = importlib.import_module("guji_console.app").app
+    console_auth = importlib.import_module("guji_console.auth")
+    Identity = importlib.import_module("guji_console.auth.identity").Identity
+    app.dependency_overrides[console_auth.get_identity] = lambda: Identity(
+        email="r@example.com", role="reviewer", tier="reviewer")
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_route_cls_param_and_cache_key(client):
+    q = "/api/review/cards?book=keben&pages=1-2&gate_cut=false&skip_decided=false"
+    r0 = client.get(q)
+    r1 = client.get(q + "&cls=*")
+    r2 = client.get(q + "&cls=ji_yi_si")
+    assert r1.status_code == 200 and r2.status_code == 200, r1.text
+    assert r0.headers["X-Cards-Cache"] == "miss" and r1.headers["X-Cards-Cache"] == "miss"
+    assert "class_counts" not in r0.json() and r1.json()["class_counts"]["replace_align"] == 3
+    assert [c["id"] for c in r2.json()["cards"]] == ["keben:1:1:2"]
+    assert client.get(q + "&cls=bogus").status_code == 400
+
+
+# ── 3. 上下文：整理本优先 ─────────────────────────────────────────────
+
+def test_around_prefers_ref_text_and_sub(ws, tmp_path, monkeypatch):
+    from guji_console.routers.review import _around, _column_slots
+    from open_guji_cv.core.spec import page_key
+    from open_guji_cv.products.kinds.recog import (AlignRec, ColumnDecision, DecisionRec,
+                                                   PageAlignRef, PageDecision)
+    from open_guji_cv.products.store import ProductStore
+    st = ProductStore(tmp_path / "products")
+    recs = [DecisionRec(id="b:1:1:1", slot=1, char="甲"), DecisionRec(id="b:1:1:2", slot=2, char="乙"),
+            DecisionRec(id="b:1:1:3a", slot=3, sub="a", char="丙"),
+            DecisionRec(id="b:1:1:3b", slot=3, sub="b", char="丁"),
+            DecisionRec(id="b:1:1:4", slot=4, char="戊")]
+    st.write("b", "context_decide", page_key(1),
+             {"context_decision": PageDecision(page=1, columns=[ColumnDecision(col=1, chars=recs)])})
+    st.write("b", "align_ref", page_key(1), {"align_ref": PageAlignRef(page=1, anchored=True, chars=[
+        AlignRec(id="b:1:1:2", col=1, slot=2, align_char="已", align_op="equal"),
+        AlignRec(id="b:1:1:3b", col=1, slot=3, sub="b", align_char="⼰", align_op="equal")])})
+    out = _column_slots(st, "b", 1, 1, {})
+    assert [x["text"] for x in out] == ["甲", "已", "丙", "己", "戊"]
+    assert [x["text_src"] for x in out] == ["context", "ref", "context", "ref", "context"]
+    assert [x["char"] for x in out] == ["甲", "乙", "丙", "丁", "戊"]      # 刻本读法原样留着
+    r = _around(st, "b", 1, 1, 3, before=5, after=5, cache={}, sub="b")
+    assert r["slots"][r["at"]]["id"] == "b:1:1:3b"
+    assert r["ref_text"] == "甲已丙己戊" and r["text"] == "甲乙丙丁戊"
+    # 不带 sub：照旧取这一格的第一条（改前行为）
+    r = _around(st, "b", 1, 1, 3, before=1, after=1, cache={})
+    assert r["slots"][r["at"]]["id"] == "b:1:1:3a"
+
+
+def test_around_batch_keys_with_sub(env, client):
+    r = client.post("/api/review/around/batch", json={"book": "keben", "before": 20, "after": 20, "items": [
+        {"page": 1, "col": 1, "slot": 1}, {"page": 1, "col": 1, "slot": 2, "sub": "a"}]})
+    assert r.status_code == 200, r.text
+    assert set(r.json()["around"]) == {"1:1:1", "1:1:2a"}
+
+
+# ── 4. 己已巳专用卡的事件协议（node 跑 reviewClass.ts）─────────────────
+
+TS = (Path(__file__).resolve().parents[1]
+      / "guji_console/frontend/src/components/review/reviewClass.ts")
+
+
+def _node_ok() -> bool:
+    node = shutil.which("node")
+    if not node:
+        return False
+    return subprocess.run([node, "--experimental-strip-types", "-e", "0"],
+                          capture_output=True).returncode == 0
+
+
+needs_node = pytest.mark.skipif(not _node_ok(), reason="没有支持 --experimental-strip-types 的 node（≥22.6）")
+
+
+def _run_ts(tmp_path, body: str):
+    mod = tmp_path / "reviewClass.mts"
+    shutil.copy(TS, mod)
+    runner = tmp_path / "run.mts"
+    runner.write_text("import * as R from './reviewClass.mts'\n" + body, encoding="utf-8")
+    r = subprocess.run([shutil.which("node"), "--experimental-strip-types", "--no-warnings", str(runner)],
+                       capture_output=True, text=True, check=True)
+    return json.loads(r.stdout)
+
+
+@needs_node
+def test_ts_jys_pick_emits_same_row_as_generic_pick(tmp_path):
+    out = _run_ts(tmp_path, """
+const now = 1000, seen = 400
+const picks = ['1', '2', '3'].map((k) => R.jysPickByKey(k))
+// 己已巳卡按 2 = 选「已」；普通卡点候选「已」走的是同一个 pickVerdict（ReviewPanel.setVerdict）
+const jys = R.verdictRow('b:1:1:2', R.pickVerdict(R.jysPickByKey('2'), undefined, seen, now))
+const gen = R.verdictRow('b:1:1:2', R.pickVerdict('已', undefined, seen, now))
+// 先标了 T（字形不完整）再三选一：缺陷档保住，字照样带上
+const defect = R.verdictRow('b:1:1:2', R.pickVerdict('巳', { shape: '', done: 'truncated', dwell: 7 }, seen, now))
+const none = R.verdictRow('b:1:1:2', { shape: '', done: '' })
+console.log(JSON.stringify({ picks, jys, gen, defect, none,
+  noneKeys: R.JYS_NONE_KEYS, isJ: R.isJysCard('ji_yi_si', false), opened: R.isJysCard('ji_yi_si', true),
+  ctx: [R.ctxChar({ char: '乙', text: '已' }, false), R.ctxChar({ char: '乙', text: '已' }, true),
+        R.ctxChar({ char: null }, false)] }))
+""")
+    assert out["picks"] == ["己", "已", "巳"]
+    assert out["jys"] == out["gen"] == {"id": "b:1:1:2", "v": "confirm", "shape": "已",
+                                        "no_glyph_lib": False, "client_ts": 1000, "dwell_ms": 600}
+    assert out["defect"] == {"id": "b:1:1:2", "v": "seg_defect", "quality": "truncated", "shape": "巳",
+                             "client_ts": 1000, "dwell_ms": 7}
+    assert out["none"] is None and out["isJ"] is True and out["opened"] is False
+    assert "4" in out["noneKeys"]
+    assert out["ctx"] == ["已", "乙", "□"]
+
+
+@needs_node
+def test_ts_verdict_row_matches_previous_submit_mapping(tmp_path):
+    """`verdictRow` 是从 submit 里原样抽出来的：各档行形状与改前逐字段相同。"""
+    out = _run_ts(tmp_path, """
+const v = (done, extra = {}) => ({ shape: '天', done, ts: 5, dwell: 9, ...extra })
+console.log(JSON.stringify([
+  R.verdictRow('x', v('skip')), R.verdictRow('x', v('non')),
+  R.verdictRow('x', v('damaged', { guess: '天' })), R.verdictRow('x', v('contaminated')),
+  R.verdictRow('x', v('1', { noGlyphLib: true }), true), R.verdictRow('x', v('1'), null),
+]))
+""")
+    assert out == [
+        {"id": "x", "v": "skip"},
+        {"id": "x", "v": "not_a_char"},
+        {"id": "x", "v": "damaged", "guess": "天", "client_ts": 5, "dwell_ms": 9},
+        {"id": "x", "v": "seg_defect", "quality": "contaminated", "shape": "天", "client_ts": 5, "dwell_ms": 9},
+        {"id": "x", "v": "confirm", "shape": "天", "no_glyph_lib": True, "client_ts": 5, "dwell_ms": 9,
+         "ai_accepted": True},
+        {"id": "x", "v": "confirm", "shape": "天", "no_glyph_lib": False, "client_ts": 5, "dwell_ms": 9},
+    ]
+
+
+@needs_node
+def test_ts_pick_source_rides_on_confirm_only(tmp_path):
+    """选字来源（人审找字 §5.3）：pickVerdict 记下、verdictRow 只在 confirm 行写 pick_*；没点过的行逐字段不变。"""
+    out = _run_ts(tmp_path, """
+const alt = R.pickVerdict('𡚁', undefined, 400, 1000, { src: 'alt', rank: 3, pivot: '弊' })
+const key = R.pickVerdict('弊', undefined, 400, 1000, { src: 'cand', rank: 1, from: '整理本+库' })
+const defect = R.pickVerdict('巳', { shape: '', done: 'truncated', dwell: 7 }, 400, 1000, { src: 'alt', rank: 1 })
+const cleared = R.pickVerdict('', undefined, 400, 1000, { src: 'custom' })
+console.log(JSON.stringify({
+  alt: R.verdictRow('x', alt), key: R.verdictRow('x', key), defect: R.verdictRow('x', defect),
+  cleared: cleared.pick ?? null, bad: R.pickFields({ src: 'alt', rank: 0, pivot: '弊病' }), none: R.pickFields(undefined),
+}))
+""")
+    base = {"id": "x", "v": "confirm", "no_glyph_lib": False, "client_ts": 1000, "dwell_ms": 600}
+    assert out["alt"] == {**base, "shape": "𡚁", "pick_src": "alt", "pick_rank": 3, "pivot": "弊"}
+    assert out["key"] == {**base, "shape": "弊", "pick_src": "cand", "pick_rank": 1, "pick_from": "整理本+库"}
+    assert "pick_src" not in out["defect"], "切分缺陷档不带选字来源"
+    assert out["cleared"] is None, "清空了字就不留来源"
+    assert out["bad"] == {"pick_src": "alt"} and out["none"] == {}
+
+
+@needs_node
+def test_ts_zh_label_shows_codepoint_beyond_bmp_han(tmp_path):
+    """控制台小标签：基本区、扩 A、兼容区照常显示；扩 B 以后、私用区显示码位（用户 10-20）。"""
+    out = _run_ts(tmp_path, r"""
+console.log(JSON.stringify(['之', '㐀', '豈', '□', 'a', '\u{20000}', '\u{2D44A}', '\u{301CF}', '\uE000', '之乎'].map(R.zhLabel)))
+""")
+    assert out == ["之", "㐀", "豈", "□", "a", "U+20000", "U+2D44A", "U+301CF", "U+E000", "之乎"]
+
+
+# ── 5. 康熙部首归一 ──────────────────────────────────────────────────
+
+
+# ── 6. 切线用例记忆 ───────────────────────────────────────────────────
+

@@ -1,0 +1,10 @@
+__pycache__/
+*.egg-info/
+.venv/
+dist/
+!guji_console/static/dist/
+!guji_console/static/dist/**
+build/
+.pytest_cache/
+.ruff_cache/
+runs/

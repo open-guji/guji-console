@@ -21,13 +21,27 @@ PENDING, RUNNING, COMPLETED, FAILED, CANCELLED = "pending", "running", "complete
 TERMINAL = {COMPLETED, FAILED, CANCELLED}
 
 
+def cv_root() -> Path:
+    """装着的 open-guji-cv 的仓根（`open_guji_cv/` 的上一级）。子进程在这里跑、任务记录默认也落这里的
+    `runs/`——控制台还在 cv 里时就是这样（原先按本文件位置推，搬进 guji-console 后改成按 cv 包的位置找）。
+    只查包位置、不 import 它。cv 不是源码安装（`pip install` 进 site-packages，上一级没有 pyproject）
+    时退回当前目录，免得往 site-packages 里写任务记录。"""
+    import importlib.util
+    spec = importlib.util.find_spec("open_guji_cv")
+    if spec is None or not spec.origin:
+        raise RuntimeError("没装 open-guji-cv：guji-console 要和 cv 装在同一个环境里")
+    root = Path(spec.origin).resolve().parent.parent
+    return root if (root / "pyproject.toml").exists() else Path.cwd()
+
+
 def default_runs_root() -> Path:
     env = os.environ.get("GUJI_RUNS_DIR")
-    return Path(env) if env else Path(__file__).resolve().parent.parent.parent / "runs"
+    return Path(env) if env else cv_root() / "runs"
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parent.parent.parent
+    """子进程的工作目录（沿用旧名）：cv 仓根。"""
+    return cv_root()
 
 
 @dataclass
