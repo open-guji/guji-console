@@ -36,6 +36,8 @@ def get_identity(request: Request) -> Identity:
     identity, iat = hit
     if time.time() - iat > cfg.role_refresh_seconds:
         raise HTTPException(status_code=401, detail="会话需要刷新")
+    if cfg.min_tier == "admin" and identity.tier != "admin":
+        raise HTTPException(status_code=403, detail="本平台目前只对管理员开放")
     return identity
 
 
