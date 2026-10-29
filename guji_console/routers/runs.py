@@ -95,6 +95,9 @@ class RunRequest(BaseModel):
 
 @router.post("/api/runs")
 def api_run(req: RunRequest) -> dict:
+    from ..auth import config as auth_config
+    if auth_config.get().no_runs:
+        raise HTTPException(403, "本服务器不跑管线（GUJI_CONSOLE_NO_RUNS=1），产物由整理的人打包送上来")
     if req.allow_sample_db:
         import os
         os.environ["GUJI_ALLOW_SAMPLE_DB"] = "1"

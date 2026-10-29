@@ -27,6 +27,17 @@ guji runs list                                                            # 看�
 装上本包后，`guji console` / `guji runs` 由本包经入口点 `guji.commands` 提供（以前在 cv 的 `cli_v2.py` 里，参数不变）。
 鉴权、对外部署的参数见 `guji_console/auth/config.py` 与 cv 仓 `doc/console_manual.md`。
 
+## 线上（console.kaiyuanguji.com）
+
+对外跑的那份用网站 OAuth 登录（`client_id=collate`），不许 `--no-auth`。额外两个环境变量：
+
+| 变量 | 作用 |
+|---|---|
+| `GUJI_CONSOLE_MIN_TIER=admin` | 只让网站管理员进（第一阶段，Sheldon 10-29）；缺省 `reviewer`，校对者也能进 |
+| `GUJI_CONSOLE_NO_RUNS=1` | 不收「下单跑管线」，产物由整理的人打包送上来 |
+
+所有人在审卡上的裁决都直接落人裁事件，事件里记登录的 email。设计见 cv 仓 `doc/design/拆分-控制台独立成包与上网站.md` 与本仓 `docs/上网站设计.md`。
+
 ## 前端
 
 ```bash

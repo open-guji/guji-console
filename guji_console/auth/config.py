@@ -53,6 +53,11 @@ class AuthConfig:
     no_auth: bool = False
     #: 挂在反向代理前缀下时的 root_path（如 `/collate`），传给 uvicorn 也传给前端。
     root_path: str = ""
+    #: 最低准入级别（`GUJI_CONSOLE_MIN_TIER`）：`reviewer`（缺省，校对者和管理员都能进）或 `admin`
+    #: （线上第一阶段只开给网站管理员，Sheldon 10-29）。够不上的登录后一律 403。
+    min_tier: str = "reviewer"
+    #: 关掉「下单跑管线」（`GUJI_CONSOLE_NO_RUNS=1`）：线上服务器不跑管线，产物由整理的人送上去。
+    no_runs: bool = False
 
 
 _config: AuthConfig | None = None
@@ -75,6 +80,8 @@ def _from_env() -> AuthConfig:
         dev_idp=os.environ.get("GUJI_CONSOLE_DEV_IDP") == "1",
         no_auth=os.environ.get("GUJI_CONSOLE_NO_AUTH") == "1",
         root_path=os.environ.get("GUJI_CONSOLE_ROOT_PATH", ""),
+        min_tier=os.environ.get("GUJI_CONSOLE_MIN_TIER", "reviewer"),
+        no_runs=os.environ.get("GUJI_CONSOLE_NO_RUNS") == "1",
     )
 
 
