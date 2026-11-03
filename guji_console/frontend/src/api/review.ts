@@ -106,8 +106,8 @@ export function fetchAroundBatch(
   })
 }
 
-export function contextImgUrl(book: string, page: number, col: number, slot: number) {
-  return withWorkspace(`/api/review/context-img/${encodeURIComponent(book)}/${page}/${col}/${slot}.png?around=2`)
+export function contextImgUrl(book: string, page: number, col: number, slot: number, around = 2, mark = false) {
+  return withWorkspace(`/api/review/context-img/${encodeURIComponent(book)}/${page}/${col}/${slot}.png?around=${around}${mark ? '&mark=1' : ''}`)
 }
 
 /** 字体候选索引状态（K19，`GET /api/rare/status`）：`deferred` = 缺盘且有活跑批，冷建推迟，

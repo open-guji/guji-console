@@ -96,4 +96,7 @@
 
 /* 体检卡上下文：列图上下各两格 */
 .gl-ctx { margin-top: .35rem; }
-.gl-ctx-img { height: 13rem; width: auto; border: 1px solid var(--line, #ddd); background: #fff; }
+.gl-ctx-img { height: 10rem; width: auto; border: 1px solid var(--line, #ddd); background: #fff; }
+.gl-self-ctx { height: 12rem; width: auto; border: 2px solid var(--accent, #2b5d7c); background: #fff; }
+.gl-ctx-text { margin: .3rem 0; font-size: 1.05rem; line-height: 1.7; }
+.gl-ctx-hit { color: #c0392b; font-size: 1.2em; }

@@ -1045,7 +1045,8 @@ def api_review_around_batch(req: AroundBatchIn) -> dict:
 
 @router.get("/api/review/context-img/{book}/{page}/{col}/{slot}.png")
 @maps_http
-def api_review_context_img(book: str, page: int, col: int, slot: int, around: int = 2) -> Response:
+def api_review_context_img(book: str, page: int, col: int, slot: int, around: int = 2,
+                            mark: bool = False) -> Response:
     """裁切前的列图，围绕这一格上下各留 `around` 格：看「切分/收框前长什么样」。
 
     用户 2026-09-09：「点一下看到上下多两个字的位置的图片，我想看到切分前
@@ -1083,7 +1084,13 @@ def api_review_context_img(book: str, page: int, col: int, slot: int, around: in
         raise ImageMissing("列图读不出来")
     h = img.shape[0]
     y0 = max(0, min(h - 1, y0)); y1 = max(y0 + 1, min(h, y1))
-    ok, buf = cv2.imencode(".png", img[y0:y1])
+    out = img[y0:y1]
+    if mark:
+        # `mark=1`：红框标出本格（字形库体检卡，Sheldon 2026-11-03：要看出上下切分错）
+        bx = rows[idx].bbox_col
+        out = cv2.cvtColor(out, cv2.COLOR_GRAY2BGR)
+        cv2.rectangle(out, (int(bx[0]), int(bx[1]) - y0), (int(bx[2]) - 1, int(bx[3]) - 1 - y0), (0, 0, 255), 2)
+    ok, buf = cv2.imencode(".png", out)
     if not ok:
         raise EncodeFailed("编码失败")
     return Response(content=buf.tobytes(), media_type="image/png")
