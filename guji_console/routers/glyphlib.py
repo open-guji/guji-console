@@ -19,7 +19,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
-from ..auth import require_admin, require_reviewer
+from ..auth import Identity, require_admin, require_reviewer
 from ..errors import maps_http
 
 router = APIRouter(dependencies=[Depends(require_reviewer)])
@@ -215,9 +215,9 @@ class AuditDecideIn(BaseModel):
     force: bool = False          # nearest/unencoded 的 IDS 在 Unicode 里已有同结构字时，人确认仍要这样标
 
 
-@router.post("/api/glyphlib/audit/decide", dependencies=[Depends(require_admin)])
+@router.post("/api/glyphlib/audit/decide")
 @maps_http
-def api_glyphlib_audit_decide(d: AuditDecideIn) -> dict:
+def api_glyphlib_audit_decide(d: AuditDecideIn, identity: Identity = Depends(require_admin)) -> dict:
     """写一条 `glyph_audit` 事件并立即消费（撤库 / 改字 / 白名单）。
 
     批次固定 `glyphlib-audit`：与定字（`*-decide`）、复核（`*-collate`）分开记账。"""
@@ -232,7 +232,7 @@ def api_glyphlib_audit_decide(d: AuditDecideIn) -> dict:
     log = deps.event_log()
     ev = make_event(batch, log.latest_seq(batch) + 1, "glyph_audit",
                     EventTarget(step="glyph_audit", unit="cell", key=d.instance_id),
-                    d.model_dump())
+                    d.model_dump(), reviewer=identity.email)
     log.append([ev])
     out = {"ok": True, "event": ev.id}
     try:

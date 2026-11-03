@@ -60,7 +60,7 @@ export function LibSummaryPanel({ onFilter }: { onFilter: (f: string) => void })
           ? <><b className="mono">{s.book_edition}</b> <span className="muted">{s.sources.find((x) => x.kind !== 'font')?.title ?? ''}</span></>
           : <span className="pb-chip">未声明（按实例前缀分成 {s.editions.filter((e) => e.kind !== 'font').length} 个 edition）</span>}</p>
         <table className="pb-table">
-          <thead><tr><th className="pb-left">实例前缀</th><th className="pb-left">是什么</th><th>刻例</th><th className="pb-left">来路</th></tr></thead>
+          <thead><tr><th className="pb-left">实例来源</th><th className="pb-left">是什么</th><th>刻例</th><th className="pb-left">来路</th></tr></thead>
           <tbody>
             {s.sources.filter((x) => x.kind !== 'font').map((x) => (
               <tr key={x.source_id}>
@@ -72,8 +72,8 @@ export function LibSummaryPanel({ onFilter }: { onFilter: (f: string) => void })
             ))}
           </tbody>
         </table>
-        <p className="muted gl-note">实例前缀只是<b>字位坐标的命名空间</b>，不是版本：旧管线（v1）按格序从 0 数，新管线（v2）按字位从 1 数，
-          同名 id 不是同一格，所以人裁一律加 <span className="mono">v2:</span> 前缀存。它们都属于同一本书、同一个 edition。
+        <p className="muted gl-note">这几行都是<b>同一本书、同一个 edition</b>，区别只是刻例出自哪一代管线、实例 id 用哪套格号
+          （旧管线按格序从 0 数，新管线按格号从 1 数，同名 id 不是同一格）。刻例可不可信看「来路」列（人裁 / 整理本对齐 / 库匹配 / 上下文），不看这一列。
           {s.fonts && Object.keys(s.fonts).length > 0 && <> 字体域另计：{Object.keys(s.fonts).join('、')}。</>}</p>
       </div>
 
@@ -100,9 +100,9 @@ export function LibSummaryPanel({ onFilter }: { onFilter: (f: string) => void })
 }
 
 function SRC_NOTE(src: string, pv: string | null) {
-  if (src === 'v2') return '新管线（v2）字位 · 控制台人裁进库的都在这里'
-  if (pv === 'v1') return '旧管线（v1）字位 · 早期整理本对齐 / 库匹配 / 上下文准入'
-  return '本书字位 · 播种 / 自动放行'
+  if (src === 'v2') return '新管线 · 控制台人裁进库的刻例（id 带 v2:，格号从 1）'
+  if (src === 'v1' || pv === 'v1') return '旧管线 · 没能对到现格的旧刻例（id 带 v1:，格号从 0，只作参考）'
+  return '本书字位（id 不带前缀，格号从 1）· 播种、自动放行，以及按形状重键到现格的旧管线刻例'
 }
 
 function Tile({ label, value, hint, ochre, onClick }: {
