@@ -93,3 +93,7 @@
   border-radius: 2px; background: var(--ochre-soft); color: var(--ochre); }
 .gl-approx-tag { font-family: inherit; margin-right: .15rem; padding: 0 .15rem; border-radius: 2px; font-weight: 500;
   background: var(--ochre-soft); color: var(--ochre); }
+
+/* 体检卡上下文：列图上下各两格 */
+.gl-ctx { margin-top: .35rem; }
+.gl-ctx-img { height: 13rem; width: auto; border: 1px solid var(--line, #ddd); background: #fff; }

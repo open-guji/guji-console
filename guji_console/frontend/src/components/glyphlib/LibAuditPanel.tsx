@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 // 一批只渲染这么多卡（每卡六张图）：四庫 435 张一次铺开，浏览器卡死（用户 2026-09-26）
 const BATCH = 30
 import { IdsPicker } from './IdsPicker'
+import { contextImgUrl } from '../../api/review'
 import { fetchLibAudit, FONT_NAME, libFontUrl, libPatchUrl, postLibAudit, PROV_LABEL,
   type AuditDecision, type AuditFinding, type AuditResult } from '../../api/glyphlib'
 
@@ -120,6 +121,11 @@ export function LibAuditPanel({ onPick, isAdmin }: { onPick: (c: string) => void
             })()}
             {f.font_char && <Fig src={libFontUrl(f.font_char)} cap={`字体「${f.font_char}」${f.font_best.toFixed(2)}`} />}
           </div>
+          <div className="gl-tiles gl-ctx">
+            <Ctx iid={f.instance_id} cap="本例上下文" />
+            {f.same_peer && !f.same_peer_ws && <Ctx iid={f.same_peer} cap="同字参照上下文" />}
+            {f.rival_peer && <Ctx iid={f.rival_peer} cap={`对手「${f.rival_char}」上下文`} />}
+          </div>
           {!done[f.key] && !isAdmin && (
             <p className="muted">体检裁决（撤库/改字）需要管理员权限，只有管理员能操作。</p>
           )}
@@ -130,6 +136,8 @@ export function LibAuditPanel({ onPick, isAdmin }: { onPick: (c: string) => void
                 title="两个都没标错，只是形近或异体">形近·异体</button>
               <button disabled={!!busy} onClick={() => decide(f, { v: 'evict', target: f.instance_id })}
                 title="本例撤出字形库（图坏 / 切坏 / 认不准）">撤本例</button>
+              {f.same_peer && !f.same_peer_ws && <button disabled={!!busy} onClick={() => decide(f, { v: 'evict', target: f.same_peer! })}
+                title="本例没错，那张同字参照标错了（或图坏），撤它">撤同字参照「{f.char}」</button>}
               {f.rival_peer && <button disabled={!!busy} onClick={() => decide(f, { v: 'evict', target: f.rival_peer! })}
                 title="本书里那个对手标错了，撤它">撤对手「{f.rival_char}」</button>}
               {[f.rival_char, f.xrival_char, f.font_char].filter((c, i, a) => c && a.indexOf(c) === i).map((c) => (
@@ -175,6 +183,29 @@ function Fig({ src, cap, strong }: { src: string; cap: string; strong?: boolean 
     <figure className="gl-tile gl-audit-fig">
       <img className={`gl-img gl-img-lg${strong ? ' gl-img-self' : ''}`} src={src} alt={cap} loading="lazy"
         onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden' }} />
+      <figcaption>{cap}</figcaption>
+    </figure>
+  )
+}
+
+// 实例 id → 格：`v2:vol02:58:2:10` / `vol01:10:4:17` → 册、页、列、格。v1:（旧格序坐标）与夹注 a/b 不出上下文。
+function cellOf(iid: string): { book: string; page: number; col: number; slot: number } | null {
+  const p = iid.split(':')
+  if (p[0] === 'v1') return null
+  const q = p[0] === 'v2' ? p.slice(1) : p
+  if (q.length !== 4 || !/^\d+$/.test(q[3])) return null
+  const [book, page, col, slot] = [q[0], +q[1], +q[2], +q[3]]
+  return Number.isFinite(page) && Number.isFinite(col) ? { book, page, col, slot } : null
+}
+
+// 切分前的列图，上下各两格（`/api/review/context-img`，要该册产物在服务器上；没有就不显示）
+function Ctx({ iid, cap }: { iid: string; cap: string }) {
+  const c = cellOf(iid)
+  if (!c) return null
+  return (
+    <figure className="gl-tile gl-audit-fig gl-ctx-fig">
+      <img className="gl-ctx-img" src={contextImgUrl(c.book, c.page, c.col, c.slot)} alt={cap} loading="lazy"
+        onError={(e) => { (e.target as HTMLImageElement).closest('figure')!.style.display = 'none' }} />
       <figcaption>{cap}</figcaption>
     </figure>
   )
