@@ -29,11 +29,16 @@ from open_guji_cv.console_api import register_all  # 确保事件/路由模块�
 register_all()
 from open_guji_cv.console_api import reports_root
 from .. import deps
-from ..auth import require_reviewer
+from ..auth import Identity, require_reviewer
 from ..errors import maps_http
 from open_guji_cv.console_api import enrich_events as _anchor_events
 
 router = APIRouter(dependencies=[Depends(require_reviewer)])
+
+
+def _email(identity) -> str | None:
+    """事件记谁裁的；单测直接调路由函数时拿到的是 Depends 占位，记空。"""
+    return identity.email if isinstance(identity, Identity) else None
 
 
 def _latest(book: str) -> Path | None:
@@ -215,7 +220,7 @@ class SegIn(BaseModel):
 
 @router.post("/api/step8/seg")
 @maps_http
-def api_step8_seg(d: SegIn) -> dict:
+def api_step8_seg(d: SegIn, identity: Identity = Depends(require_reviewer)) -> dict:
     """卡片上图旁的「字形不完整 / 有噪声」复选框（2026-09-24）。
 
     与「谁对 / 哪一类」**独立**，不改字、不影响分类；每处写一条 `confirm(v=seg_defect)`
@@ -242,7 +247,7 @@ def api_step8_seg(d: SegIn) -> dict:
     evs = [make_event(batch, base + i + 1, "confirm",
                       EventTarget(step="step8_collate", unit="cell", key=it.id,
                                   **parse_card_id(it.id)),
-                      seg_payload(it.flags), source_format="server")
+                      seg_payload(it.flags), source_format="server", reviewer=_email(identity))
            for i, it in enumerate(todo)]
     _anchor_events(evs)   # 人裁带锚：重切后靠它找回是哪个字（总览/15）
     log.append(evs)
@@ -323,7 +328,7 @@ def _check(d: DecideIn) -> str:
 #:   → 一条 `confirm`，走 Step7 的改字／入库／失效产物；没变就不写，不白白入库；
 #: - 字对在本书**有无一处归通假**变了 → `mark_jiajie` / `unmark_jiajie`（跨书表）。
 def _events_for(d: DecideIn, base_seq: int, batch: str, current: dict[str, dict],
-                jiajie: set, jiajie_mine: set | None = None):
+                jiajie: set, jiajie_mine: set | None = None, reviewer: str | None = None):
     """一条裁决 → 要写的事件列表。`current`：这个字对**现在**的逐字位状态行。
 
     `jiajie`：整张通假表（有了就不必再标）；`jiajie_mine`：其中本书标的（只有这些撤得动）。
@@ -340,7 +345,7 @@ def _events_for(d: DecideIn, base_seq: int, batch: str, current: dict[str, dict]
         out.append(make_event(batch, base_seq + len(out) + 1, kind,
                               EventTarget(step="step8_collate", unit="cell", key=key,
                                           **ids),
-                              payload, source_format="server"))
+                              payload, source_format="server", reviewer=reviewer))
 
     pair = list(d.pair)
     who = d.who
@@ -374,7 +379,7 @@ def _events_for(d: DecideIn, base_seq: int, batch: str, current: dict[str, dict]
 
 @router.post("/api/step8/decide")
 @maps_http
-def api_step8_decide(d: DecideIn) -> dict:
+def api_step8_decide(d: DecideIn, identity: Identity = Depends(require_reviewer)) -> dict:
     """写复核裁决事件并按路由消费。
 
     `batch` 固定为 `<book>-collate`：与定字裁决（`<book>-*-decide`）**分批次**，
@@ -397,7 +402,7 @@ def api_step8_decide(d: DecideIn) -> dict:
     batch = f"{d.book}-collate"
     log = deps.event_log()
     evs = _events_for(d, log.latest_seq(batch), batch, current, _jiajie(),
-                      _jiajie_of_book(d.book))
+                      _jiajie_of_book(d.book), reviewer=_email(identity))
     _anchor_events(evs)   # 人裁带锚：重切后靠它找回是哪个字（总览/15）
     n = log.append(evs)
     confirms = [e for e in evs if e.kind == "confirm"]
