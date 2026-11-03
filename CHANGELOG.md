@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 未发版
+
+- 待审卡显示待审原因（A31，sheldon 11-03 定 `pending_reason`）：卡片证据栏加一行「原因：…」，悬停看说明；码表 `frontend/src/pendingReasons.ts` 由 cv 导出生成（与网站同一份），认不出的按 unknown；老 cv 不带这个键时不显示。要 cv#964。
+
 ## 0.1.0（2026-10-28）
 
 - 从 open-guji-cv 拆出（cv 的拆包 C0–C3：#749 设计、#751 门面、#752 断反向依赖、#753 写操作走命令行）。
