@@ -100,6 +100,9 @@ export interface ReviewCard {
                     ts: string; batch: string; status: string | null; withdrawn?: boolean } | null
   /** 点名清单等不去重的模式下，这一格现行有效的人裁已有（GUJI-525）：置灰沉底，不预勾 */
   decided?: boolean
+  /** 待审原因（sheldon 11-03 定，cv `review/pending_reason.py`）：每张卡都带；认不出的按 unknown 显示。 */
+  pending_reason?: string
+  pending_reason_detail?: string
   /** 按类别审（overview#247）：请求带了 `cls` 才有。一张卡只归优先级最高的一类。 */
   cls?: string
   /** 类别细项（overview#265）：目前只有「对齐改字层」有——grid / tail / manual。 */

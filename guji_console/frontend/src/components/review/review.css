@@ -62,6 +62,7 @@
 .rvctx { font-size: .72rem; color: var(--ink-2); word-break: break-all; margin-top: .3rem; }
 .rvctx mark { background: var(--indigo-soft); padding: 0 .1em; }
 .rvdoubt { color: var(--ochre); font-size: .72rem; }
+.rvreason { font-size: .72rem; font-weight: 600; }
 .rvin { width: 4rem; font-size: .9rem; }
 /* 读文定字：待审位虚线下划线（别当可靠上下文用），兜底字浅一档 */
 .ctx-rev { border-bottom: 1px dashed var(--zhu); }

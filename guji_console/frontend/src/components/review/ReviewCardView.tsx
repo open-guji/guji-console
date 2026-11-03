@@ -7,6 +7,7 @@ import type { KeyItem } from './candidates'
 import type { Verdict } from './ReviewPanel'
 import { ctxChar, isJysCard, JYS_OPTIONS } from './reviewClass'
 import type { PickInfo } from './reviewClass'
+import { reasonSpec } from '../../pendingReasons'
 
 interface Props {
   idx: number
@@ -51,6 +52,13 @@ export function ReviewCardView({
 
   const ocr = (c.ocr || []).slice(0, 2)
   const doubts = (c.doubts || []).map((d, i) => <div key={i} className="rvdoubt">⚠ {d}</div>)
+  // 待审原因（pending_reason）：一行名称，悬停看说明；老后端没有这个键就不显示
+  const reason = c.pending_reason !== undefined ? reasonSpec(c.pending_reason) : null
+  const reasonRow = reason && (
+    <div className="rvreason" title={reason.hint}>
+      原因：{reason.label}{c.pending_reason_detail ? `（${c.pending_reason_detail}）` : ''}
+    </div>
+  )
   const fm = c.form && c.form.state === 'open' ? c.form : null
 
   function pick(ch: string, from?: PickInfo) {
@@ -224,6 +232,7 @@ export function ReviewCardView({
                 </span>
               ))
             : '—'}</div>
+          {reasonRow}
           {doubts}
         </div>
       </div>
