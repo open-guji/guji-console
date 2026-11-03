@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from 'react'
 // 一批只渲染这么多卡（每卡六张图）：四庫 435 张一次铺开，浏览器卡死（用户 2026-09-26）
 const BATCH = 30
 import { IdsPicker } from './IdsPicker'
-import { contextImgUrl } from '../../api/review'
+import { aroundKey, contextImgUrl, fetchAroundBatch } from '../../api/review'
+import type { AroundContext } from '../../types/review'
 import { fetchLibAudit, FONT_NAME, libFontUrl, libPatchUrl, postLibAudit, PROV_LABEL,
   type AuditDecision, type AuditFinding, type AuditResult } from '../../api/glyphlib'
 
@@ -19,6 +20,7 @@ export function LibAuditPanel({ onPick, isAdmin }: { onPick: (c: string) => void
   const [picking, setPicking] = useState('')
   const [skipped, setSkipped] = useState<Set<string>>(new Set())   // 翻过去没裁的，本轮不再出
   const [view, setView] = useState<string[] | null>(null)          // 当前这一批的卡（key）
+  const [around, setAround] = useState<Record<string, AroundContext>>({})  // `册|p:c:s` → 前后各 10 字
   useEffect(() => { fetchLibAudit().then(setR).catch((e) => setErr((e as Error).message)) }, [])
 
   const shown = useMemo(() => (r?.findings ?? []).filter((f) => !flag || f.flags.includes(flag)
@@ -32,6 +34,29 @@ export function LibAuditPanel({ onPick, isAdmin }: { onPick: (c: string) => void
   const batch = batchKeys.map((k) => byKey.get(k)).filter((f): f is AuditFinding => !!f)
   const left = shown.filter((f) => !done[f.key] && !skipped.has(f.key) && !batchKeys.includes(f.key)).length
   const nBatchDone = batch.filter((f) => done[f.key]).length
+  const batchSig = batch.map((f) => f.key).join(',')
+  useEffect(() => {
+    // 一批卡的文字上下文：本例、本书同字参照、本书对手，按册一次批量取（产物不在本机的册取不到，不显示）
+    const byBook = new Map<string, Map<string, { page: number; col: number; slot: number; sub: string }>>()
+    for (const f of batch) {
+      for (const iid of [f.instance_id, f.same_peer_ws ? null : f.same_peer, f.rival_peer]) {
+        const c = iid ? cellOf(iid) : null
+        if (!c || around[ctxKey(c)]) continue
+        if (!byBook.has(c.book)) byBook.set(c.book, new Map())
+        byBook.get(c.book)!.set(aroundKey(c), { page: c.page, col: c.col, slot: c.slot, sub: c.sub })
+      }
+    }
+    byBook.forEach((m, book) => {
+      fetchAroundBatch(book, 10, 10, [...m.values()])
+        .then((res) => setAround((a) => {
+          const n = { ...a }
+          for (const [k, v] of Object.entries(res.around)) n[`${book}|${k}`] = v
+          return n
+        }))
+        .catch(() => {})
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batchSig])
   function nextBatch() {
     const skip = new Set(skipped)
     batch.forEach((f) => { if (!done[f.key]) skip.add(f.key) })
@@ -107,7 +132,7 @@ export function LibAuditPanel({ onPick, isAdmin }: { onPick: (c: string) => void
             {done[f.key] && <b className="gl-done-mark">{done[f.key]}</b>}
           </div>
           <div className="gl-tiles">
-            <Fig src={libPatchUrl(f.instance_id)} cap="本例" strong />
+            <SelfFig iid={f.instance_id} />
             {f.same_peer && <Fig src={libPatchUrl(f.same_peer, f.same_peer_ws || undefined)}
               cap={`同字${f.same_peer_ws ? '·他书' : ''} ${f.best_same.toFixed(2)}`} />}
             {f.rival_peer && <Fig src={libPatchUrl(f.rival_peer)} cap={`本书「${f.rival_char}」${f.rival.toFixed(2)}`} />}
@@ -121,10 +146,14 @@ export function LibAuditPanel({ onPick, isAdmin }: { onPick: (c: string) => void
             })()}
             {f.font_char && <Fig src={libFontUrl(f.font_char)} cap={`字体「${f.font_char}」${f.font_best.toFixed(2)}`} />}
           </div>
+          <div className="gl-ctx-text">
+            <CtxText around={around} iid={f.instance_id} label="本例" />
+            {f.same_peer && !f.same_peer_ws && <CtxText around={around} iid={f.same_peer} label="同字参照" />}
+            {f.rival_peer && <CtxText around={around} iid={f.rival_peer} label={`对手「${f.rival_char}」`} />}
+          </div>
           <div className="gl-tiles gl-ctx">
-            <Ctx iid={f.instance_id} cap="本例上下文" />
-            {f.same_peer && !f.same_peer_ws && <Ctx iid={f.same_peer} cap="同字参照上下文" />}
-            {f.rival_peer && <Ctx iid={f.rival_peer} cap={`对手「${f.rival_char}」上下文`} />}
+            {f.same_peer && !f.same_peer_ws && <Ctx iid={f.same_peer} cap="同字参照所在列" />}
+            {f.rival_peer && <Ctx iid={f.rival_peer} cap={`对手「${f.rival_char}」所在列`} />}
           </div>
           {!done[f.key] && !isAdmin && (
             <p className="muted">体检裁决（撤库/改字）需要管理员权限，只有管理员能操作。</p>
@@ -188,23 +217,56 @@ function Fig({ src, cap, strong }: { src: string; cap: string; strong?: boolean 
   )
 }
 
-// 实例 id → 格：`v2:vol02:58:2:10` / `vol01:10:4:17` → 册、页、列、格。v1:（旧格序坐标）与夹注 a/b 不出上下文。
-function cellOf(iid: string): { book: string; page: number; col: number; slot: number } | null {
+// 实例 id → 格：`v2:vol02:58:2:10` / `vol01:10:4:17` / `v2:vol01:88:1:3a` → 册、页、列、格、夹注。v1:（旧格序坐标）不出上下文。
+function cellOf(iid: string): { book: string; page: number; col: number; slot: number; sub: string } | null {
   const p = iid.split(':')
   if (p[0] === 'v1') return null
   const q = p[0] === 'v2' ? p.slice(1) : p
-  if (q.length !== 4 || !/^\d+$/.test(q[3])) return null
-  const [book, page, col, slot] = [q[0], +q[1], +q[2], +q[3]]
-  return Number.isFinite(page) && Number.isFinite(col) ? { book, page, col, slot } : null
+  const m = q.length === 4 ? /^(\d+)([ab]?)$/.exec(q[3]) : null
+  if (!m) return null
+  const [book, page, col] = [q[0], +q[1], +q[2]]
+  return Number.isFinite(page) && Number.isFinite(col) ? { book, page, col, slot: +m[1], sub: m[2] } : null
 }
 
-// 切分前的列图，上下各两格（`/api/review/context-img`，要该册产物在服务器上；没有就不显示）
+const ctxKey = (c: { book: string; page: number; col: number; slot: number; sub: string }) => `${c.book}|${aroundKey(c)}`
+
+// 本例：切分前的列图，上下各多一格，红框标出本格——上下切分错能一眼看出（Sheldon 2026-11-03）。
+// 该册产物不在本机就退回库里的图块。
+function SelfFig({ iid }: { iid: string }) {
+  const c = cellOf(iid)
+  const [fallback, setFallback] = useState(!c)
+  const src = fallback || !c ? libPatchUrl(iid) : contextImgUrl(c.book, c.page, c.col, c.slot, 1, true)
+  return (
+    <figure className="gl-tile gl-audit-fig">
+      <img className={fallback ? 'gl-img gl-img-lg gl-img-self' : 'gl-self-ctx'} src={src} alt="本例" loading="lazy"
+        onError={() => { if (!fallback) setFallback(true) }} />
+      <figcaption>本例{fallback ? '' : '（红框，上下各一格）'}</figcaption>
+    </figure>
+  )
+}
+
+// 文字上下文：前后各 10 字，本格加粗标红（有整理本字用整理本，否则刻本读法）
+function CtxText({ around, iid, label }: { around: Record<string, AroundContext>; iid: string; label: string }) {
+  const c = cellOf(iid)
+  const a = c ? around[ctxKey(c)] : undefined
+  if (!a || a.at < 0 || !a.slots.length) return null
+  const t = (k: number) => a.slots[k]?.text || a.slots[k]?.char || '□'
+  return (
+    <div className="gl-ctx-line"><span className="muted">{label}</span>{' '}
+      {a.slots.slice(0, a.at).map((_, k) => t(k)).join('')}
+      <b className="gl-ctx-hit">{t(a.at)}</b>
+      {a.slots.slice(a.at + 1).map((_, k) => t(a.at + 1 + k)).join('')}
+    </div>
+  )
+}
+
+// 同字参照 / 对手所在列：同样上下各一格、红框
 function Ctx({ iid, cap }: { iid: string; cap: string }) {
   const c = cellOf(iid)
   if (!c) return null
   return (
     <figure className="gl-tile gl-audit-fig gl-ctx-fig">
-      <img className="gl-ctx-img" src={contextImgUrl(c.book, c.page, c.col, c.slot)} alt={cap} loading="lazy"
+      <img className="gl-ctx-img" src={contextImgUrl(c.book, c.page, c.col, c.slot, 1, true)} alt={cap} loading="lazy"
         onError={(e) => { (e.target as HTMLImageElement).closest('figure')!.style.display = 'none' }} />
       <figcaption>{cap}</figcaption>
     </figure>
