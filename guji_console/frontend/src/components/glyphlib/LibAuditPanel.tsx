@@ -160,7 +160,7 @@ export function LibAuditPanel({ onPick, isAdmin }: { onPick: (c: string) => void
           <button className={nBatchDone === batch.length && left ? 'primary' : ''} disabled={!left} onClick={nextBatch}>下一批 {BATCH}（跳过本批没裁的）</button>
         </div>
       )}
-      <p className="muted gl-note">撤库、改字改的是 glyph.db；裁完在工作区跑 <span className="mono">glyph-db export</span> 把真源带进 git（总账页会提示漂移）。</p>
+      <p className="muted gl-note">撤库、改字改的是 glyph.db；裁完 <span className="mono">guji db sync</span> 推回中心库（服务器上定时自动推）。</p>
     </div>
   )
 }
