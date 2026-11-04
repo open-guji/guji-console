@@ -12,7 +12,7 @@ import pytest
 from fastapi import HTTPException
 
 from guji_console.auth import Identity
-from open_guji_cv.feedback import cell_review as cr
+from guji_manager.feedback import cell_review as cr
 
 _ID = Identity(email="cell-test@example.com", role="reviewer", tier="reviewer")
 

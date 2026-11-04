@@ -8,7 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from guji_console.auth import Identity
-from open_guji_cv.feedback import figures as F
+from guji_manager.feedback import figures as F
 
 _ID = Identity(email="fig-test@example.com", role="reviewer", tier="reviewer")
 W, H = 1000, 1400

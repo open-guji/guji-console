@@ -77,7 +77,7 @@ def test_empty_events_do_not_trigger_consume(client):
 
 def test_consume_failure_does_not_break_the_write(client, monkeypatch):
     """消费炸了也得把「事件已保存」如实告诉前端——否则人以为裁决丢了。"""
-    from open_guji_cv.review import event_write as mod
+    from guji_manager.review import event_write as mod
 
     def boom(*a, **kw):
         raise RuntimeError("路由表坏了")
@@ -130,7 +130,7 @@ def test_request_id_dedups_retry(client):
 
 def test_label_batch_is_written_but_never_consumed(client, tmp_path):
     """L3 补标签批（出批次时冻结了卡片文件）：只写事件，不进路由表——补标签不该把现行产物标过期。"""
-    from open_guji_cv.review import label_batches as LB
+    from guji_manager.review import label_batches as LB
     LB._write_batch("L3-x", "t", "column_warp", "border_class", "vol01", LB.COLEND_SHARD, [],
                     {"strata": {}}, [], "n", root=tmp_path / "batches")
     d = _post(client, [{"id": "colborder:vol01:4:1:top", "border_class": "glued"}],

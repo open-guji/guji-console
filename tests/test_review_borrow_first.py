@@ -15,8 +15,8 @@ import pytest
 
 from guji_console.routers.review import (_build_char_groups,
                                                    _top_pick)
-from open_guji_cv.review import borrow_first as bf
-from open_guji_cv.review import cards as cards_mod
+from guji_manager.review import borrow_first as bf
+from guji_manager.review import cards as cards_mod
 
 
 def _bk(params=None):

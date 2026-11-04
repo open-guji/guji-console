@@ -19,7 +19,7 @@ from test_replace_align_grid import (RA, _rec, _run_ts, client, env, needs_node)
 
 
 def _write_shadow(tmp_path, cells, book="keben"):
-    from open_guji_cv.review.shadow import shadow_path
+    from guji_manager.review.shadow import shadow_path
     p = shadow_path(book)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps({"version": 1, "book": book, "cells": cells}, ensure_ascii=False),

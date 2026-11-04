@@ -19,7 +19,7 @@ def _u(*v) -> np.ndarray:
 
 @pytest.fixture
 def cache_env(ws, tmp_path, monkeypatch):
-    from open_guji_cv.review import cards as C
+    from guji_manager.review import cards as C
     fb = tmp_path / "fb"
     (fb / "events").mkdir(parents=True)
     monkeypatch.setenv("GUJI_FEEDBACK_DIR", str(fb))

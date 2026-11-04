@@ -35,8 +35,8 @@ def _book(review: dict | None):
 # ── 接口 ─────────────────────────────────────────────────────────────
 
 def _call_cases(monkeypatch, review: dict | None, candidates: list[dict], chosen: int | None):
-    import open_guji_cv.eval.touching as T
-    import open_guji_cv.review.cards as cards
+    import guji_manager.eval.touching as T
+    import guji_manager.review.cards as cards
     from guji_console import deps
     from guji_console.routers import cutline as R
 

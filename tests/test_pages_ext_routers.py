@@ -126,7 +126,7 @@ def test_step9_progress_accepts_cells_and_bad_prefix_is_400(monkeypatch):
 
     bk = make_book("vol01")
     monkeypatch.setattr(m, "load_book", lambda book: bk)
-    monkeypatch.setattr("open_guji_cv.report.progress.page_progress",
+    monkeypatch.setattr("guji_manager.report.progress.page_progress",
                         lambda book, pages, store: {"pages": pages})
 
     out = m.api_step9_progress(book="vol01", pages="cells:1:1:1")
