@@ -26,7 +26,7 @@ def env(ws, tmp_path, monkeypatch):
     from open_guji_cv.core.spec import page_key
     from open_guji_cv.products.kinds.recog import ColumnAdmit, PageAdmit
     from open_guji_cv.products.store import ProductStore
-    from open_guji_cv.review import cards as C
+    from guji_manager.review import cards as C
     fb = tmp_path / "fb"
     (fb / "events").mkdir(parents=True)
     monkeypatch.setenv("GUJI_FEEDBACK_DIR", str(fb))
@@ -84,7 +84,7 @@ def client(env):
 
 def test_route_no_param_byte_identical(client, env):
     """不传 doubt 的响应体 = 直接调 `cards()`（改前的装配）序列化出来的那份。"""
-    from open_guji_cv.review.cards import cards
+    from guji_manager.review.cards import cards
     r = client.get("/api/review/cards?book=keben&pages=1-2&gate_cut=false&skip_decided=false")
     assert r.status_code == 200, r.text
     want = cards("keben", "1-2", 400, "review", env, gate_cut=False, skip_decided=False)

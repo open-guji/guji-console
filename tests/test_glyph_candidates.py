@@ -11,7 +11,7 @@ import json
 import pytest
 
 from guji_console.auth import Identity
-from open_guji_cv.feedback import candidates as cand
+from guji_manager.feedback import candidates as cand
 
 _ID = Identity(email="cand-test@example.com", role="reviewer", tier="reviewer")
 

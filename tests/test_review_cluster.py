@@ -177,7 +177,7 @@ def test_route_cluster_param(ws, tmp_path, monkeypatch):
     import importlib
 
     from fastapi.testclient import TestClient
-    from open_guji_cv.review import cards as C
+    from guji_manager.review import cards as C
     monkeypatch.setenv("GUJI_CACHE_DIR", str(tmp_path / "cache"))
     C.clear_cards_cache()
     app = importlib.import_module("guji_console.app").app

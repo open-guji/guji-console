@@ -15,10 +15,11 @@ open-guji 的控制台：看产物与叠图、人裁（定字、切线、版框�
 
 ## 安装与启动
 
-与 cv 装在同一个环境，cv 用源码安装：
+与 cv、guji-manager 装在同一个环境，cv 用源码安装。审阅卡片、评测、Step8 等 2026-11-04 起在 guji-manager（≥0.3.1），
+cv 的 `console_api` 转去那边取，没装 manager 时这些页面会报「已搬去 guji-manager」：
 
 ```bash
-uv pip install -e ../open-guji-cv[torch,dev] -e ".[dev]"
+uv pip install -e ../open-guji-cv[torch,dev] -e ../guji-manager -e ".[dev]"
 guji console --no-auth --workspaces-root D:/workspace/guji-workspace     # 本机
 guji-console --no-auth --workspaces-root …                               # 同上，独立入口
 guji runs list                                                            # 看控制台的任务队列

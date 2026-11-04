@@ -40,7 +40,7 @@ def env(ws, tmp_path, monkeypatch):
     from open_guji_cv.products.kinds.recog import (AlignRec, ColumnAdmit, CoordRec, PageAdmit,
                                                    PageAlignRef)
     from open_guji_cv.products.store import ProductStore
-    from open_guji_cv.review import cards as C
+    from guji_manager.review import cards as C
     fb = tmp_path / "fb"
     (fb / "events").mkdir(parents=True)
     monkeypatch.setenv("GUJI_FEEDBACK_DIR", str(fb))
