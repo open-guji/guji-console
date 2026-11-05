@@ -14,7 +14,7 @@ from open_guji_cv.feedback.events import EventLog
 def log(tmp_path, monkeypatch):
     lg = EventLog(tmp_path / "fb")
     monkeypatch.setattr(deps, "event_log", lambda: lg)
-    import open_guji_cv.feedback.consumers as C
+    import guji_manager.feedback.consumers as C
     monkeypatch.setattr(C, "route_and_consume", lambda *a, **k: {"results": []})
     s8._SEG_CACHE.clear()
     return lg

@@ -16,9 +16,9 @@ from pydantic import BaseModel
 from .. import deps
 from ..auth import require_admin, require_reviewer
 from ..errors import maps_http
-from open_guji_cv.console_api import BadRequest
-from open_guji_cv.console_api import rate_history
-from open_guji_cv.console_api import quality
+from guji_manager.console_api import BadRequest
+from guji_manager.console_api import rate_history
+from guji_manager.console_api import quality
 
 router = APIRouter(dependencies=[Depends(require_reviewer)])
 
@@ -26,7 +26,7 @@ router = APIRouter(dependencies=[Depends(require_reviewer)])
 
 @router.get("/api/evals")
 def api_evals() -> list[dict]:
-    from open_guji_cv.console_api import EVALS, runnable
+    from guji_manager.console_api import EVALS, runnable
     out = []
     for s in sorted(EVALS.values(), key=lambda x: x.id):
         ok, why = runnable(s)
@@ -61,11 +61,11 @@ def _rulers_pages(bk, pages: str) -> list[int]:
     （`review/cards.py::cards`）先把 id 清单换成页号，再交给 `resolve_pages`。
     """
     if pages.startswith("cells:"):
-        from open_guji_cv.console_api import parse_cells_spec
+        from guji_manager.console_api import parse_cells_spec
         ids = parse_cells_spec(pages, bk.id)
         return sorted({int(i.split(":")[1]) for i in ids})
     if pages.startswith("list:"):
-        from open_guji_cv.console_api import feedback_root
+        from guji_manager.console_api import feedback_root
         lp = feedback_root() / "lists" / f"{pages[5:].strip()}.txt"
         if not lp.exists():
             raise BadRequest(f"清单不存在：{lp}")
@@ -88,8 +88,8 @@ def api_rulers(book: str = "vol01", pages: str = "dev_set") -> dict:
 
     口径见 `eval/rulers.py`，照抄 pipeline_review 的定义表，不另立标准。
     """
-    from open_guji_cv.console_api import load_book
-    from open_guji_cv.console_api import measure
+    from guji_manager.console_api import load_book
+    from guji_manager.console_api import measure
     bk = load_book(book)
     return measure(book, _rulers_pages(bk, pages), deps.product_store())
 
@@ -102,8 +102,8 @@ def api_align_ref_summary(book: str = "vol01", pages: str = "") -> dict:
     不是闸（四路证据任一路缺席只降级不阻塞），是证据可用性上报——见
     `align_ref_summary` docstring。`pages` 留空＝全书（该函数默认口径）。
     """
-    from open_guji_cv.console_api import load_book
-    from open_guji_cv.console_api import align_ref_summary
+    from guji_manager.console_api import load_book
+    from guji_manager.console_api import align_ref_summary
     pg = load_book(book).resolve_pages(pages) if pages else None
     return align_ref_summary(book, pg, deps.product_store())
 
@@ -119,8 +119,8 @@ def api_round(book: str = "vol01", pages: str = "") -> dict:
     含义与「什么时候修算法」见 `doc/design/review_loop_sop.md`：
     绿=继续跑，黄=记着别动算法（样本不够时改算法是在拟合噪声），红=停下修。
     """
-    from open_guji_cv.console_api import round_check as rc
-    from open_guji_cv.console_api import load_book
+    from guji_manager.console_api import round_check as rc
+    from guji_manager.console_api import load_book
 
     out = {"next": rc.next_batch(book)}
     if pages:
@@ -138,7 +138,7 @@ def api_throughput(book: str = "vol01", pages: str = "", all_pages: bool = True)
     `all_pages=True`（默认）统计全书已有产物的页；传 `pages` 则改统计那个子集
     （如 `dev_set`），此时 `all_pages` 自动失效。
     """
-    from open_guji_cv.console_api import throughput as tp
+    from guji_manager.console_api import throughput as tp
     p = None if (all_pages and not pages) else (pages or "dev_set")
     return tp.full_report(book, p, deps.product_store())
 
@@ -152,9 +152,9 @@ def api_overview_summary(book: str = "vol01") -> dict:
     要 10+ 秒（判据D 生僻字候选要读 CNN/字体候选），总览页一进来就等 10 秒
     不合理——完整判据体检留给「统计数据」页手动点，这里只给"有没有事要看"。
     """
-    from open_guji_cv.console_api import GATES, gate_summary
-    from open_guji_cv.console_api import round_check as rc
-    from open_guji_cv.console_api import align_ref_summary
+    from guji_manager.console_api import GATES, gate_summary
+    from guji_manager.console_api import round_check as rc
+    from guji_manager.console_api import align_ref_summary
 
     st = deps.product_store()
     rate = rate_history.measure(book, st) or {}
@@ -213,7 +213,7 @@ def api_llm_online_stats(book: str = "") -> dict:
     """
     from pathlib import Path
 
-    from open_guji_cv.console_api import compute_report
+    from guji_manager.console_api import compute_report
 
     log_dir = Path("output") / "llm_online_calls"
     if not log_dir.exists() or not any(log_dir.glob("*.jsonl")):
@@ -235,7 +235,7 @@ def api_llm_online_calls(book: str, page: int = 0, limit: int = 200) -> dict:
     """
     from pathlib import Path
 
-    from open_guji_cv.console_api import load_online_calls
+    from guji_manager.console_api import load_online_calls
 
     log_dir = Path("output") / "llm_online_calls"
     rows = load_online_calls(log_dir, book)

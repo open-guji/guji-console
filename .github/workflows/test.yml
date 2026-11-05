@@ -24,7 +24,7 @@ jobs:
           ref: ${{ inputs.cv_ref || 'dev' }}
           path: open-guji-cv
           lfs: false
-      # 审阅卡片、评测等已从 cv 搬去 guji-manager（拆分 P2 第四批，2026-11-04），cv 的 console_api 转去那边取
+      # 控制台门面 console_api 在 guji-manager（拆分 P6，2026-11-04；manager ≥0.4.0），审阅卡片、评测等也在那边
       - uses: actions/checkout@v4
         with:
           repository: open-guji/guji-manager

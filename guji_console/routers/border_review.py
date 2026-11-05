@@ -19,10 +19,10 @@ import numpy as np
 from .. import deps
 from ..auth import require_reviewer
 from ..errors import maps_http
-from open_guji_cv.console_api import load_book
-from open_guji_cv.console_api import RunContext
-from open_guji_cv.console_api import ProductMissing
-from open_guji_cv.console_api import border_cards as bc
+from guji_manager.console_api import load_book
+from guji_manager.console_api import RunContext
+from guji_manager.console_api import ProductMissing
+from guji_manager.console_api import border_cards as bc
 
 router = APIRouter(dependencies=[Depends(require_reviewer)])
 

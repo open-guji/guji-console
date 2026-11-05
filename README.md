@@ -8,7 +8,7 @@ open-guji 的控制台：看产物与叠图、人裁（定字、切线、版框�
 
 ## 和 cv 的关系
 
-- **读、现算图、写人裁事件**：只经 cv 的门面 `open_guji_cv.console_api`，不 import cv 的其它内部（守卫：`tests/test_facade_only.py`）。
+- **读、现算图、写人裁事件**：只经 cv 的门面 `guji_manager.console_api`，不 import cv 的其它内部（守卫：`tests/test_facade_only.py`）。
 - **会改东西或耗时的动作**（跑管线、消费事件、导金标、迁载体、漂移检查、跑评测）：起子进程调 cv 命令行（`guji_console/jobs.py`、`guji_console/cli.py`）。
 - 启动时核 cv 的契约版本（`guji_console/commands.py::SUPPORTS_CONTRACT`）。
 - cv 不依赖本包。

@@ -25,13 +25,13 @@ from pathlib import Path
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from open_guji_cv.console_api import register_all  # 确保事件/路由模块已加载
+from guji_manager.console_api import register_all  # 确保事件/路由模块已加载
 register_all()
-from open_guji_cv.console_api import reports_root
+from guji_manager.console_api import reports_root
 from .. import deps
 from ..auth import Identity, require_reviewer
 from ..errors import maps_http
-from open_guji_cv.console_api import enrich_events as _anchor_events
+from guji_manager.console_api import enrich_events as _anchor_events
 
 router = APIRouter(dependencies=[Depends(require_reviewer)])
 
@@ -59,7 +59,7 @@ def _load(book: str) -> dict:
 def _book_conventions(book: str) -> dict:
     """`books/<id>.yaml` 的 `char_conventions` → `{(刻本形, 校对本形): kind}`。"""
     try:
-        from open_guji_cv.console_api import load_book
+        from guji_manager.console_api import load_book
         rows = getattr(load_book(book), "char_conventions", None) or []
         return {tuple(r["pair"]): r.get("kind") or "" for r in rows if r.get("pair")}
     except Exception:
@@ -68,20 +68,20 @@ def _book_conventions(book: str) -> dict:
 
 def _jiajie() -> set:
     """`jiajie.tsv` → `{(刻本形, 校对本形)}`。人标过「这是通假」的字对。"""
-    from open_guji_cv.console_api import JIAJIE_REL, tier_pairs as load_pairs
+    from guji_manager.console_api import JIAJIE_REL, tier_pairs as load_pairs
     return load_pairs(JIAJIE_REL)
 
 
 def _jiajie_of_book(book: str) -> set:
     """`jiajie.tsv` 里**本书复核批次**标的那些字对。`unmark_jiajie` 只撤得动这些：
     别的书标的行按它判「要不要撤」，每挪一次都会白写一条撤不掉的 unmark。"""
-    from open_guji_cv.console_api import jiajie_rows
+    from guji_manager.console_api import jiajie_rows
     return {(a, b) for a, b, src in jiajie_rows() if src.startswith(f"human:evt_{book}-collate_")}
 
 
 def _denied() -> set:
     """`variants.deny.tsv` → `{(刻本形, 校对本形)}`。人推翻过的关系图边。"""
-    from open_guji_cv.console_api import DENY_REL, collate_repo_path as _repo_path
+    from guji_manager.console_api import DENY_REL, collate_repo_path as _repo_path
     p = _repo_path(DENY_REL)
     out = set()
     if p.exists():
@@ -121,8 +121,8 @@ def _row_lookup(book: str) -> dict:
 
 def _items(book: str, doc: dict) -> list[dict]:
     """最新对勘报告 ＋ 本书复核事件 → 逐字位的状态行（`collate_state.build_items`）。"""
-    from open_guji_cv.console_api import CONV_KIND_CAT, build_items, human_verdicts
-    from open_guji_cv.console_api import tier_of
+    from guji_manager.console_api import CONV_KIND_CAT, build_items, human_verdicts
+    from guji_manager.console_api import tier_of
     conv = _book_conventions(book)
     conv_set, denied, jj = set(conv), _denied(), _jiajie()
     verdicts = human_verdicts(deps.event_log().read(f"{book}-collate"), book,
@@ -170,7 +170,7 @@ def api_step8_queue(book: str, bucket: str = "pending", cat: str = "",
     `bucket` ∈ pending / ours / theirs / neither；`cat` 只在 ours 下有意义，空 = 全部。
     卡片 = 同一字对 × 同一状态的一组字位（**按对不按条**，𠊓→傍 一对占 24 条）。
     """
-    from open_guji_cv.console_api import counts, group_items
+    from guji_manager.console_api import counts, group_items
     doc = _load(book)
     items = _items(book, doc) if doc else []
     sel = [it for it in items
@@ -192,10 +192,10 @@ _SEG_CACHE: dict = {}
 
 def _seg_flags(book: str) -> dict:
     """人标过的切分缺陷（跨批次）。事件日志 ~1 MB，按各批次文件 mtime 缓存。"""
-    from open_guji_cv.console_api import seg_flags
+    from guji_manager.console_api import seg_flags
     log = deps.event_log()
     d = log.events_dir
-    from open_guji_cv.console_api import book_source_rev, sibling_books_dir
+    from guji_manager.console_api import book_source_rev, sibling_books_dir
     sig = (tuple(sorted((f.name, f.stat().st_mtime) for f in d.glob("*.jsonl"))) if d.exists() else (),
            book_source_rev(book, sibling_books_dir(d)))      # 册刚换图源：判据变了，缓存作废
     hit = _SEG_CACHE.get(book)
@@ -227,11 +227,11 @@ def api_step8_seg(d: SegIn, identity: Identity = Depends(require_reviewer)) -> d
     走现成的切分缺陷通道，落 `char-segmentation/instances` 金标给 Step3 当反馈。
     状态没变的那几处不写。
     """
-    from open_guji_cv.console_api import SEG_FLAGS, seg_payload
-    from open_guji_cv.console_api import route_and_consume
-    from open_guji_cv.console_api import EventTarget, make_event
-    from open_guji_cv.console_api import parse_card_id
-    from open_guji_cv.console_api import RouteTable
+    from guji_manager.console_api import SEG_FLAGS, seg_payload
+    from guji_manager.console_api import route_and_consume
+    from guji_manager.console_api import EventTarget, make_event
+    from guji_manager.console_api import parse_card_id
+    from guji_manager.console_api import RouteTable
 
     bad = [it.id for it in d.items
            if not it.id.startswith(f"{d.book}:") or any(f not in SEG_FLAGS for f in it.flags)]
@@ -272,9 +272,9 @@ def api_step8_seg(d: SegIn, identity: Identity = Depends(require_reviewer)) -> d
 
 def _submit_rerun(book: str, pages: list[int]) -> dict:
     """把这些页从 `row_segment` 起重跑（跑批工单，工作区取本请求那个，同 `/api/runs`）。"""
-    from open_guji_cv.console_api import load_book
-    from open_guji_cv.console_api import default_pipeline_id
-    from open_guji_cv.console_api import workspace_root
+    from guji_manager.console_api import load_book
+    from guji_manager.console_api import default_pipeline_id
+    from guji_manager.console_api import workspace_root
     from ..jobs import JobSpec
     ws = workspace_root()
     job = deps.runner().submit(JobSpec(
@@ -309,7 +309,7 @@ def _nchars(t: str) -> int:
 
 
 def _check(d: DecideIn) -> str:
-    from open_guji_cv.console_api import CATS, WHO
+    from guji_manager.console_api import CATS, WHO
     if not d.ids or len(d.pair) != 2 or not all(d.pair) or d.pair[0] == d.pair[1]:
         return "缺 pair 或 ids"
     if d.who and d.who not in WHO:
@@ -334,9 +334,9 @@ def _events_for(d: DecideIn, base_seq: int, batch: str, current: dict[str, dict]
     `jiajie`：整张通假表（有了就不必再标）；`jiajie_mine`：其中本书标的（只有这些撤得动）。
     """
     jiajie_mine = jiajie if jiajie_mine is None else jiajie_mine
-    from open_guji_cv.console_api import VIA, final_char
-    from open_guji_cv.console_api import EventTarget, make_event
-    from open_guji_cv.console_api import parse_card_id
+    from guji_manager.console_api import VIA, final_char
+    from guji_manager.console_api import EventTarget, make_event
+    from guji_manager.console_api import parse_card_id
 
     out = []
 
@@ -385,8 +385,8 @@ def api_step8_decide(d: DecideIn, identity: Identity = Depends(require_reviewer)
     `batch` 固定为 `<book>-collate`：与定字裁决（`<book>-*-decide`）**分批次**，
     互不干扰——两者问的不是同一个问题，混在一个批次里台账也看不清。
     """
-    from open_guji_cv.console_api import route_and_consume
-    from open_guji_cv.console_api import RouteTable
+    from guji_manager.console_api import route_and_consume
+    from guji_manager.console_api import RouteTable
 
     err = _check(d)
     if err:

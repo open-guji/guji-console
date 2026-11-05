@@ -5,13 +5,15 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "guji-console"
 version = "0.1.0"
-description = "open-guji 控制台：看产物、人裁、下单跑管线的 Web 界面（FastAPI + React）；经 open-guji-cv 的门面 console_api 读数据，写操作调 cv 命令行"
+description = "open-guji 控制台：看产物、人裁、下单跑管线的 Web 界面（FastAPI + React）；经 guji-manager 的门面 console_api 读数据，写操作调 guji 命令行"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     # 版本不写下限：cv 多是源码安装（-e），版本号跟 dev 走；兼容性由启动时核契约版本、
-    # 以及 `open_guji_cv.console_api` 门面在不在来保证（见 guji_console/commands.py）
+    # 以及 `guji_manager.console_api` 门面在不在来保证（见 guji_console/commands.py）。
+    # 门面 2026-11-04（拆分 P6）起在 guji-manager（≥0.4.0），cv 那份只转发
     "open-guji-cv",
+    "guji-manager",
     "fastapi>=0.110",
     "uvicorn>=0.27",
     # auth/oauth.py 顶层 import httpx

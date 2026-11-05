@@ -22,13 +22,13 @@ import random
 import cv2
 from fastapi import APIRouter, Depends, HTTPException, Response
 
-from open_guji_cv.console_api import load_book
-from open_guji_cv.console_api import column_key, page_key
-from open_guji_cv.console_api import BLOCKING, REVIEW, triage_column
+from guji_manager.console_api import load_book
+from guji_manager.console_api import column_key, page_key
+from guji_manager.console_api import BLOCKING, REVIEW, triage_column
 from .. import deps
 from ..auth import require_reviewer
 from ..errors import maps_http
-from open_guji_cv.console_api import imread as cv_imread
+from guji_manager.console_api import imread as cv_imread
 
 router = APIRouter(dependencies=[Depends(require_reviewer)])
 
@@ -215,8 +215,8 @@ def api_column_review_img(book: str, page: int, col: int, src: str = "bin",
     """
     import cv2
 
-    from open_guji_cv.console_api import binarize_page
-    from open_guji_cv.console_api import column_text_band, denoise_column
+    from guji_manager.console_api import binarize_page
+    from guji_manager.console_api import column_text_band, denoise_column
 
     p = deps.image_cache().get(book, "column_raw", column_key(page, col))
     if p is None:
@@ -275,7 +275,7 @@ def api_column_profile(book: str, page: int, col: int) -> dict:
     左右给列向（逐 x）墨占比、上下给行向（逐 y）。人拖线时看着曲线更准——
     金标 README 的走廊判据就是「拖到墨占比仍 ≈0 的最远处」。
     """
-    from open_guji_cv.console_api import (
+    from guji_manager.console_api import (
         column_profile, column_row_profile, column_text_band, denoise_column, strip_column_rules,
     )
     ctx_cache = deps.image_cache()

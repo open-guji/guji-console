@@ -16,11 +16,11 @@ from .. import deps
 from ..auth import Identity, require_admin, require_reviewer
 from ..cli import run_guji
 from ..errors import maps_http
-from open_guji_cv.console_api import enrich_events as _anchor_events
-from open_guji_cv.console_api import make_event, replay_key
-from open_guji_cv.console_api import harvest_text
-from open_guji_cv.console_api import Batch, render_registry_markdown
-from open_guji_cv.console_api import write_events
+from guji_manager.console_api import enrich_events as _anchor_events
+from guji_manager.console_api import make_event, replay_key
+from guji_manager.console_api import harvest_text
+from guji_manager.console_api import Batch, render_registry_markdown
+from guji_manager.console_api import write_events
 
 router = APIRouter(dependencies=[Depends(require_reviewer)])
 
