@@ -13,8 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from .. import deps
 from ..auth import require_reviewer
 from ..errors import maps_http
-from open_guji_cv.console_api import load_book
-from open_guji_cv.console_api import invert_cards as ic
+from guji_manager.console_api import load_book
+from guji_manager.console_api import invert_cards as ic
 
 router = APIRouter(dependencies=[Depends(require_reviewer)])
 

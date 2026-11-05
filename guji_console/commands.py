@@ -20,7 +20,7 @@ SUPPORTS_CONTRACT = (1,)
 
 
 def _check_contract() -> None:
-    from open_guji_cv.console_api import CONTRACT_VERSION
+    from guji_manager.console_api import CONTRACT_VERSION
     if CONTRACT_VERSION not in SUPPORTS_CONTRACT:
         print(f"✗ 装着的 open-guji-cv 讲契约 v{CONTRACT_VERSION}，本版 guji-console 只认 {SUPPORTS_CONTRACT}；"
               "升级 guji-console 或换一版 cv。", file=sys.stderr)
@@ -81,7 +81,7 @@ def cmd_console(args) -> None:
     # 工作区总目录（2026-09-30）：控制台进程没有「默认工作区」，工作区在页面里选（浏览器的状态）。
     # 旧法是用 GUJI_WORKSPACE 指到某一本书的目录、再扫它的兄弟——重启时带错一本，下拉框与册列表
     # 就对不上，已删。这里把继承来的 GUJI_WORKSPACE 摘掉，免得悄悄成为「请求没带工作区时的默认」。
-    from open_guji_cv.console_api import ROOT_ENV, discover_workspaces
+    from guji_manager.console_api import ROOT_ENV, discover_workspaces
     wroot = getattr(args, "workspaces_root", None) or os.environ.get(ROOT_ENV)
     if not wroot or not Path(wroot).expanduser().is_dir():
         print(f"✗ 要给工作区总目录：guji console --workspaces-root D:/workspace/guji-workspace\n"

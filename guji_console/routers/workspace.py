@@ -36,7 +36,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends
 
 from ..auth import require_reviewer
-from open_guji_cv.console_api import (  # noqa: F401  ROOT_ENV 等是给老调用方的再导出（拆分 M3）
+from guji_manager.console_api import (  # noqa: F401  ROOT_ENV 等是给老调用方的再导出（拆分 M3）
     ROOT_ENV, workspace_id as _ws_id, describe, discover_workspaces, workspace_root, workspaces_root,
 )
 

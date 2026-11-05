@@ -28,11 +28,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from open_guji_cv.console_api import EventLog
-from open_guji_cv.console_api import GoldStore
-from open_guji_cv.console_api import ImageCache
-from open_guji_cv.console_api import ProductStore
-from open_guji_cv.console_api import BatchStore
+from guji_manager.console_api import EventLog
+from guji_manager.console_api import GoldStore
+from guji_manager.console_api import ImageCache
+from guji_manager.console_api import ProductStore
+from guji_manager.console_api import BatchStore
 from .jobs import JobRunner
 
 _roots: dict[str, Path | None] = {"feedback": None, "batches": None, "dataset": None,
@@ -81,13 +81,13 @@ def _cached(kind: str, root: Path, make):
 
 
 def event_log() -> EventLog:
-    from open_guji_cv.console_api import feedback_root
+    from guji_manager.console_api import feedback_root
     root = _roots["feedback"] or feedback_root()
     return _cached("feedback", root, EventLog)          # type: ignore[return-value]
 
 
 def batch_store() -> BatchStore:
-    from open_guji_cv.console_api import batches_root
+    from guji_manager.console_api import batches_root
     root = _roots["batches"] or batches_root()
     return _cached("batches", root, BatchStore)         # type: ignore[return-value]
 
@@ -109,7 +109,7 @@ def gold_store() -> GoldStore:
 def verdict_store() -> GoldStore:
     """workspace 的裁决表 `feedback/verdicts/`——事件路由消费的落点、面板去重的数据源。
     根随 `feedback` 根走（`<feedback>/verdicts`）。"""
-    from open_guji_cv.console_api import verdicts_root
+    from guji_manager.console_api import verdicts_root
     root = (_roots["feedback"] / "verdicts") if _roots["feedback"] is not None else verdicts_root()
     return _cached("verdicts", root, GoldStore)         # type: ignore[return-value]
 

@@ -21,7 +21,7 @@ from typing import Any, TypeVar
 
 from fastapi import HTTPException
 
-from open_guji_cv.console_api import (
+from guji_manager.console_api import (
     BadRequest, Conflict, EncodeFailed, GujiError, IndexNotBuilt, NotFound, Unsupported,
 )
 

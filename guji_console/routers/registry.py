@@ -13,10 +13,10 @@ from fastapi.responses import HTMLResponse
 
 from ..auth import require_reviewer
 from ..static_path import STATIC
-from open_guji_cv.console_api import list_books, load_book
-from open_guji_cv.console_api import list_pipelines, load_pipeline
-from open_guji_cv.console_api import KINDS, STEPS
-from open_guji_cv.console_api import register_all  # 注册全部 Step 与产物种类
+from guji_manager.console_api import list_books, load_book
+from guji_manager.console_api import list_pipelines, load_pipeline
+from guji_manager.console_api import KINDS, STEPS
+from guji_manager.console_api import register_all  # 注册全部 Step 与产物种类
 register_all()
 
 router = APIRouter()
@@ -41,7 +41,7 @@ def api_pipelines() -> list[dict]:
 
 @router.get("/api/steps", dependencies=[_auth])
 def api_steps() -> list[dict]:
-    from open_guji_cv.console_api import register_all
+    from guji_manager.console_api import register_all
     register_all()
     return [s.describe() for s in STEPS.values()]
 
@@ -49,7 +49,7 @@ def api_steps() -> list[dict]:
 
 @router.get("/api/kinds", dependencies=[_auth])
 def api_kinds() -> list[dict]:
-    from open_guji_cv.console_api import register_all
+    from guji_manager.console_api import register_all
     register_all()
     return [{"id": k.id, "title": k.title, "storage": k.storage, "unit": k.unit,
              "coord_space": k.coord_space} for k in KINDS.values()]

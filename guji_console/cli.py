@@ -18,7 +18,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from open_guji_cv.console_api import workspace_root
+from guji_manager.console_api import workspace_root
 
 #: 命令行里出 JSON 之外还会印人话（如「（试算，未写入…）」），stderr 尾巴最多回这么多字给前端
 _ERR_TAIL = 2000
