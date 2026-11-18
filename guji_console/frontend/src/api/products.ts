@@ -6,8 +6,13 @@ export function fetchProduct(book: string, step: string, page: number) {
   return api<ProductResponse>(`/api/products/${encodeURIComponent(book)}/${encodeURIComponent(step)}/${key}`)
 }
 
-export function overlayUrl(book: string, step: string, page: number, scale = 0.35) {
-  return withWorkspace(`/api/overlay/${encodeURIComponent(book)}/${encodeURIComponent(step)}/${page}.png?scale=${scale}&t=${Date.now()}`)
+/** 叠图底图：彩图（原图原样）／二值（整页二值副本）／灰度。三张同尺寸同坐标（cv utils/ink.py）。 */
+export type OverlayBg = 'color' | 'bin' | 'gray'
+
+export function overlayUrl(book: string, step: string, page: number, scale = 0.35,
+                           bg: OverlayBg = 'color', qc = false) {
+  const extra = (bg !== 'color' ? `&bg=${bg}` : '') + (qc ? '&qc=true' : '')
+  return withWorkspace(`/api/overlay/${encodeURIComponent(book)}/${encodeURIComponent(step)}/${page}.png?scale=${scale}${extra}&t=${Date.now()}`)
 }
 
 export interface PrecleanRuleReport {

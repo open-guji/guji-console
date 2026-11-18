@@ -739,9 +739,10 @@ def test_route_inventory():
     `GET /api/rare/alt/{book}/{page}/{col}/{slot}`（近似字的异体族按字块图排序，只出候选）。112 → 113。
     2026-10-22 反色带送审：新增 `GET /api/invert-review/cards`、`GET /api/invert-review/preview`
     （修前修后预览）；裁决走既有 `POST /api/events`（kind=inverted_band）。113 → 115。
+    2026-11-18 彩图书双层显示：新增 `GET /api/binqc/{book}/{page}`（二值体检可疑区，只读）。118 → 119。
     """
     got = sorted(_endpoints())
-    assert len(got) == 118,f"路由数变了：{len(got)} 条\n" + "\n".join(got)
+    assert len(got) == 119,f"路由数变了：{len(got)} 条\n" + "\n".join(got)
     assert got == sorted(EXPECTED_ROUTES), (
         "路由清单变了\n少了：" + str(sorted(set(EXPECTED_ROUTES) - set(got)))
         + "\n多了：" + str(sorted(set(got) - set(EXPECTED_ROUTES))))
@@ -887,7 +888,7 @@ EXPECTED_ROUTES = [
     "GET /api/manifest/{book}/{step}",
     "GET /api/overlay/{book}/{step}/{page}.png",
     "GET /api/overview_summary",
-    "GET /api/pipelines", "GET /api/preclean/{book}/{page}",
+    "GET /api/pipelines", "GET /api/preclean/{book}/{page}", "GET /api/binqc/{book}/{page}",
     "GET /api/preclean/{book}/{page}/overlay.png", "GET /api/preclean/{book}/{page}/before.png",
     "GET /api/preclean/{book}/{page}/after.png",
     "GET /api/products/{book}/{step}/{key}", "GET /api/quality",

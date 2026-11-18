@@ -71,19 +71,21 @@ def api_raw(book: str, page: int, scale: float = 0.35) -> Response:
 
 @router.get("/api/cache/{book}/{kind}/{key}.png")
 def api_cache(book: str, kind: str, key: str, src: str = "raw") -> Response:
-    """缓存图像。`src=bin` 时从**整页二值副本**上按同一个 bbox 重裁一张。
+    """缓存图像。字块 `char_patch` 可按 `src` 换底图，**同一个 bbox、几套图**，人可以对照着看：
 
-    用户 2026-09-16：进字形库的一定是二值的，审阅时也该看二值的。字块缓存
-    存的是灰度裁片，所以二值那一路不能读缓存，得拿 `char_index` 里的
-    `bbox_page` 去 `binarized/<book>/<page>.png` 上重裁——**同一个坐标、两套图**，
-    人可以对照着看。二值副本没生成时**退回灰度**（不报错，页面照常出图）。
+    - `raw`（缺省）：缓存里的裁片（管线 Step4 读的那张：没写 `ink` 的册是灰度）；
+    - `bin`：从**整页二值副本**按 `bbox_page` 重裁（用户 2026-09-16：进字形库的一定是二值，审阅也该看二值）；
+    - `color`：从**原图原样**（彩图书就是彩色）按同一 bbox 重裁（用户 2026-11-17：二值出问题处切彩图看）；
+    - `auto`：字块落进二值体检可疑区（cv `utils/binqc.py`，`binarized/<书>/<页>.qc.json`）就给 `color`，否则 `bin`。
+
+    `bin`／`color`／`auto` 拿不到时**退回缓存裁片**（不报错，页面照常出图）。响应头 `X-Img-Src` 写实际给的是哪种。
     """
     from guji_manager.console_api import register_all
     register_all()
     if kind not in KINDS or KINDS[kind].storage != "image_cache":
         raise HTTPException(404, "不是缓存图像种类")
-    if src == "bin" and kind == "char_patch":
-        got = _char_patch_binarized(book, key)
+    if src in ("bin", "color", "auto") and kind == "char_patch":
+        got = _char_patch_recrop(book, key, src)
         if got is not None:
             return got
     try:
@@ -92,68 +94,118 @@ def api_cache(book: str, kind: str, key: str, src: str = "raw") -> Response:
         path = ctx.materialize(kind, key)
     except Exception as e:   # noqa: BLE001
         raise HTTPException(404, f"拿不到图像: {e}") from e
-    return FileResponse(path, media_type="image/png")
+    return FileResponse(path, media_type="image/png", headers={"X-Img-Src": "raw"})
 
 
-def _char_patch_binarized(book: str, key: str) -> Response | None:
-    """`p0030c01s1` → 从二值页上按该字位的 `bbox_page` 重裁。拿不到就 None（调用方退回灰度）。"""
+def _char_box(book: str, key: str) -> tuple[int, list] | None:
+    """`p0030c01s1` → (页号, 该字位的 `bbox_page`)。拿不到就 None。"""
     import re
 
     from guji_manager.console_api import page_key
-    from guji_manager.console_api import binarized_or_none
 
     m = re.fullmatch(r"p(\d+)c(\d+)s(-?\d+)([ab]?)", key)
     if not m:
         return None
     page, col, slot, sub = int(m.group(1)), int(m.group(2)), int(m.group(3)), m.group(4)
-    path = binarized_or_none(book, page)
-    if path is None:
-        return None
     try:
         ci = deps.product_store().read(book, "cell_shrink", page_key(page), "char_index")
     except Exception:   # noqa: BLE001
         return None
-    box = None
     for cc in ci.columns:
         if cc.col != col:
             continue
         for ch in cc.chars:
             if ch.slot == slot and (ch.sub or "") == sub and ch.bbox_page:
-                box = ch.bbox_page
-                break
+                return page, list(ch.bbox_page)
         break
-    if not box:
-        return None
-    g = cv_imread(str(path), cv2.IMREAD_GRAYSCALE)
-    if g is None:
-        return None
-    # ⚠️ `bbox_page` 是**右上原点规范空间**（x 向左递增，见 `core/anchor.py` 与
-    # `border_geometry` 的坐标约定），而磁盘上的图是左上原点。裁之前必须把 x
-    # 镜像回去：`x_img = (W-1) - x_canon`，左右边界同时翻所以要互换。
-    # 不翻的后果是**静默裁到另一个字**——实测 p3 c11 s11「鳳」的 bbox_page
-    # x=1467，真实位置 x=1243，正好差 (W-1)-1557；y 一点不差，所以看着像
-    # 「图没对齐」而不像「坐标系错了」。模板匹配一量就现形（score 0.973）。
-    W = g.shape[1]
+    return None
+
+
+def _crop_canon(img, box) -> bytes | None:
+    """按右上原点规范空间的 `bbox_page` 从磁盘图（左上原点）上裁。
+
+    ⚠️ `bbox_page` 是**右上原点规范空间**（x 向左递增，见 `core/anchor.py` 与
+    `border_geometry` 的坐标约定），而磁盘上的图是左上原点。裁之前必须把 x
+    镜像回去：`x_img = (W-1) - x_canon`，左右边界同时翻所以要互换。
+    不翻的后果是**静默裁到另一个字**——实测 p3 c11 s11「鳳」的 bbox_page
+    x=1467，真实位置 x=1243，正好差 (W-1)-1557；y 一点不差，所以看着像
+    「图没对齐」而不像「坐标系错了」。模板匹配一量就现形（score 0.973）。
+    """
+    W = img.shape[1]
     bx0, by0, bx1, by1 = (float(v) for v in box)
     x0 = int(round((W - 1) - bx1))
     x1 = int(round((W - 1) - bx0))
     y0, y1 = int(round(by0)), int(round(by1))
     x0, y0 = max(0, x0), max(0, y0)
-    x1, y1 = min(g.shape[1], x1), min(g.shape[0], y1)
+    x1, y1 = min(img.shape[1], x1), min(img.shape[0], y1)
     if x1 <= x0 or y1 <= y0:
         return None
-    ok, buf = cv2.imencode(".png", g[y0:y1, x0:x1])
-    if not ok:
+    ok, buf = cv2.imencode(".png", img[y0:y1, x0:x1])
+    return buf.tobytes() if ok else None
+
+
+def _char_patch_recrop(book: str, key: str, src: str) -> Response | None:
+    """`bin`／`color`／`auto`：按字位 bbox 从整页二值副本或原图重裁。拿不到就 None（调用方退回缓存裁片）。"""
+    from guji_manager.console_api import binarized_or_none
+
+    got = _char_box(book, key)
+    if got is None:
         return None
-    return Response(content=buf.tobytes(), media_type="image/png")
+    page, box = got
+    binp = binarized_or_none(book, page)
+    if src == "auto":
+        src = "color" if (binp is not None and _suspect(binp, box)) else "bin"
+    if src == "bin":
+        if binp is None:
+            return None
+        img = cv_imread(str(binp), cv2.IMREAD_GRAYSCALE)
+    else:
+        from guji_manager.console_api import effective_raw_path
+        img = cv_imread(str(effective_raw_path(load_book(book), page)))
+    if img is None:
+        return None
+    data = _crop_canon(img, box)
+    if data is None:
+        return None
+    return Response(content=data, media_type="image/png", headers={"X-Img-Src": src})
+
+
+def _suspect(binp, box) -> bool:
+    """字框是否落进二值体检可疑区。manager／cv 太旧（没有体检）就当不可疑。"""
+    try:
+        from guji_manager.console_api import canon_box_suspect, read_qc
+        return bool(canon_box_suspect(read_qc(binp), box))
+    except Exception:   # noqa: BLE001
+        return False
+
+
+@router.get("/api/binqc/{book}/{page}")
+@maps_http
+def api_binqc(book: str, page: int) -> dict:
+    """这一页的二值体检（cv `utils/binqc.py`）；没生成时 `{"page": page, "regions": [], "missing": true}`。"""
+    from guji_manager.console_api import binarized_or_none
+    try:
+        from guji_manager.console_api import read_qc
+        qc = read_qc(binarized_or_none(book, page))
+    except Exception:   # noqa: BLE001
+        qc = None
+    return qc or {"page": page, "regions": [], "missing": True}
 
 
 
 # ── 叠图 ─────────────────────────────────────────────────────────────
 @router.get("/api/overlay/{book}/{step}/{page}.png")
 @maps_http
-def api_overlay(book: str, step: str, page: int, scale: float = 0.35) -> Response:
-    return _png(overlay(book, step, page, deps.product_store()), scale)
+def api_overlay(book: str, step: str, page: int, scale: float = 0.35,
+                bg: str = "color", qc: bool = False) -> Response:
+    """`bg` 底图：color（原图原样，缺省）／bin（整页二值副本）／gray；`qc` 叠二值体检可疑区（manager ≥ #654）。
+    缺省参数不往下传，老 manager 照样能用。"""
+    kw = {}
+    if bg != "color":
+        kw["bg"] = bg
+    if qc:
+        kw["qc"] = True
+    return _png(overlay(book, step, page, deps.product_store(), **kw), scale)
 
 
 
