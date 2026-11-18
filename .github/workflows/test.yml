@@ -40,3 +40,8 @@ jobs:
       - run: uv pip install --system -e "./open-guji-cv[dev]" -e "./guji-manager" -e "./guji-console[dev]"
       - run: python -m pytest -q -p no:cacheprovider -n auto
         working-directory: guji-console
+        env:
+          # cv 的 conftest 开跑前从 R2 取钉死的模型／字体／底库语料（cv v0.7.0 起模型不在 git 里），要中心库读令牌。
+          # 值同 guji-dev-secret 里的 GUJI_DATA_TOKEN_READ，由 Ops 设成本仓 Actions secret。
+          GUJI_DATA_TOKEN_READ: ${{ secrets.GUJI_DATA_TOKEN_READ }}
+          GUJI_FETCH_MIN_FREE_GB: "1"   # 托管 runner 盘小，同 guji-manager 的 test.yml
