@@ -159,7 +159,7 @@ def api_harvest(batch_id: str, req: HarvestIn) -> dict:
         base = deps.event_log().latest_seq(batch_id)
         fresh = [e for e in evs if e.target.key not in have]
         evs = [make_event(batch_id, base + i, e.kind, e.target, e.payload,
-                          e.actor, e.source_format, e.ts)
+                          e.actor, e.source_format, e.ts, e.reviewer)   # reviewer 要带上，否则收割后变空（盘点 #6）
                for i, e in enumerate(fresh, 1)]
     _anchor_events(evs)   # 人裁带锚：重切后靠它找回是哪个字（总览/15）
     n = deps.event_log().append(evs)

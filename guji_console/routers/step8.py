@@ -41,6 +41,13 @@ def _email(identity) -> str | None:
     return identity.email if isinstance(identity, Identity) else None
 
 
+def _prov(who: str | None) -> dict:
+    """裁定事件来源三字段（清理计划 2.4）：复核台上人点的＝`human／<登录 email>／console`。
+    单测直接调路由函数时没有登录人（`_email` 给 None），`by` 记 `console`。"""
+    from guji_manager.console_api import provenance
+    return provenance("human", who or "console", "console")
+
+
 def _latest(book: str) -> Path | None:
     d = reports_root() / book
     files = sorted(d.glob("collation_*.json")) if d.exists() else []
@@ -247,7 +254,7 @@ def api_step8_seg(d: SegIn, identity: Identity = Depends(require_reviewer)) -> d
     evs = [make_event(batch, base + i + 1, "confirm",
                       EventTarget(step="step8_collate", unit="cell", key=it.id,
                                   **parse_card_id(it.id)),
-                      seg_payload(it.flags), source_format="server", reviewer=_email(identity))
+                      {**seg_payload(it.flags), **_prov(_email(identity))}, source_format="server", reviewer=_email(identity))
            for i, it in enumerate(todo)]
     _anchor_events(evs)   # 人裁带锚：重切后靠它找回是哪个字（总览/15）
     log.append(evs)
@@ -362,7 +369,8 @@ def _events_for(d: DecideIn, base_seq: int, batch: str, current: dict[str, dict]
         if new_final != cur.get("final", pair[0]):
             add("confirm", key, {"v": "confirm", "shape": new_final,
                                  "conversion": 0, "no_glyph_lib": False, "via": VIA,
-                                 "pair": pair, "note": d.note or f"Step8 复核：{who or '退回待审'}", **pick})
+                                 "pair": pair, "note": d.note or f"Step8 复核：{who or '退回待审'}", **pick,
+                                 **_prov(reviewer)})
 
     # 通假是贴给字对的跨书标签：看挪完之后本书还有没有一处归通假。自动归进来的也算——
     # 它们正是靠这张表归进来的（旧 ② 层点「通假」只记字对、不落字位），撤了表它们就散了
